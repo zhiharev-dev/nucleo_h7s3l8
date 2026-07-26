@@ -1,0 +1,105 @@
+/*
+ * Copyright (C) 2026 zhiharev-dev <zhiharev.dev@mail.ru>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ */
+
+/* Includes ---------------------------------------------------------------- */
+
+#include "main.h"
+#include "systick.h"
+#include "FreeRTOS.h"
+#include "task.h"
+
+/* Constants --------------------------------------------------------------- */
+
+#define VTOR_ADDRESS    (0x70000000UL)
+
+#define SYSTEM_CLOCK    (600000000UL)
+
+/* Function prototypes ----------------------------------------------------- */
+
+static void system_init(void);
+
+static void setup_vector_table(void);
+
+static void app_main(void * argv);
+
+/* User code --------------------------------------------------------------- */
+
+int main(void)
+{
+    system_init();
+
+    if (xTaskCreate(app_main,
+                   "app_main",
+                    256U,
+                    NULL,
+                    tskIDLE_PRIORITY + 1U,
+                    NULL) != pdPASS)
+    {
+        error();
+    }
+
+    vTaskStartScheduler();
+}
+/* ------------------------------------------------------------------------- */
+
+void error(void)
+{
+    __disable_irq();
+
+    while (true);
+}
+/* ------------------------------------------------------------------------- */
+
+static void app_main(void * argv)
+{
+    static const TickType_t frequency = pdMS_TO_TICKS(10U);
+
+    TickType_t last_wake_time = xTaskGetTickCount();
+
+    while (true)
+    {
+        vTaskDelayUntil(&last_wake_time, frequency);
+    }
+
+    vTaskDelete(NULL);
+}
+/* ------------------------------------------------------------------------- */
+
+static void system_init(void)
+{
+    setup_vector_table();
+
+    systick_init(SYSTEM_CLOCK);
+}
+/* ------------------------------------------------------------------------- */
+
+static void setup_vector_table(void)
+{
+    /* Запрет прерываний (начало критической секции) */
+    __disable_irq();
+
+    /* Установка адреса таблицы векторов */
+    SCB->VTOR = VTOR_ADDRESS;
+
+    /* Синхронизация памяти */
+    __DSB();
+    __ISB();
+
+    /* Восстановление прерываний (завершение критической секции) */
+    __enable_irq();
+}
+/* ------------------------------------------------------------------------- */
